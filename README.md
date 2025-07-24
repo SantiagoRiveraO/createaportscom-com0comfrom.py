@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Com0com Manager
 
 Un gestor de puertos COM virtuales para Windows que automatiza la creación y configuración de pares de puertos COM usando com0com.
@@ -114,3 +115,7 @@ CHINO/
 ## 📝 Licencia
 
 Este proyecto es de código abierto y está disponible bajo la licencia MIT. 
+=======
+# createaportscom-com0comfrom.py
+uso de com0com con Python
+>>>>>>> c140439307d74c5811661dcf124979afe3478a9d
