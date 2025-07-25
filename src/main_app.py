@@ -9,11 +9,9 @@ from tkinter import ttk, messagebox, scrolledtext
 import json
 import serial
 import threading
-import time
 from datetime import datetime
 import os
 import sys
-import webbrowser
 import ctypes
 
 # Agregar el directorio src al path para importar módulos
@@ -73,8 +71,10 @@ class MainApplication:
         self.setup_app_window()
         
         # Variables
-        self.serial_port = None
-        self.is_listening = False
+        self.serial_port_input = None   # Puerto de entrada (donde recibimos JSONs)
+        self.serial_port_output = None  # Puerto de salida (donde enviamos JSONs)
+        self.is_listening_input = False
+        self.is_listening_output = False
         self.config_file = "config/com_ports_config.json"
         self.message_count = 0
         
@@ -90,13 +90,6 @@ class MainApplication:
         self.root.title("CHINO - Monitor de Puertos COM")
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
-        
-        # Configurar icono (si existe)
-        try:
-            # Aquí puedes agregar un icono personalizado
-            pass
-        except:
-            pass
         
         # Configurar menú
         self.create_menu()
@@ -208,36 +201,53 @@ class MainApplication:
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         main_frame.columnconfigure(1, weight=1)
-        main_frame.rowconfigure(2, weight=1)
+        main_frame.rowconfigure(3, weight=1)
         
         # Título
         title_label = ttk.Label(main_frame, text="🔍 CHINO - Monitor de Puertos COM", 
                                font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 10))
+        title_label.grid(row=0, column=0, columnspan=4, pady=(0, 10))
         
-        # Frame de configuración
-        config_frame = ttk.LabelFrame(main_frame, text="Estado de Conexión", padding="5")
-        config_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        # Frame de configuración de puertos
+        config_frame = ttk.LabelFrame(main_frame, text="Configuración de Puertos", padding="5")
+        config_frame.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(0, 10))
         config_frame.columnconfigure(1, weight=1)
+        config_frame.columnconfigure(3, weight=1)
         
-        # Puerto COM
-        ttk.Label(config_frame, text="Puerto COM:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        self.port_var = tk.StringVar()
-        self.port_combo = ttk.Combobox(config_frame, textvariable=self.port_var, state="readonly", width=10)
-        self.port_combo.grid(row=0, column=1, sticky=tk.W, padx=(0, 10))
+        # Puerto COM Entrada
+        ttk.Label(config_frame, text="Puerto Entrada:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.port_input_var = tk.StringVar()
+        self.port_input_combo = ttk.Combobox(config_frame, textvariable=self.port_input_var, state="readonly", width=10)
+        self.port_input_combo.grid(row=0, column=1, sticky=tk.W, padx=(0, 20))
         
-        # Estado de conexión
-        self.status_var = tk.StringVar(value="⏳ Conectando...")
-        status_label = ttk.Label(config_frame, textvariable=self.status_var, 
-                                foreground="orange", font=("Arial", 10, "bold"))
-        status_label.grid(row=0, column=2)
+        # Estado de conexión entrada
+        self.status_input_var = tk.StringVar(value="⏳ Conectando...")
+        status_input_label = ttk.Label(config_frame, textvariable=self.status_input_var, 
+                                      foreground="orange", font=("Arial", 10, "bold"))
+        status_input_label.grid(row=0, column=2, padx=(0, 20))
+        
+        # Puerto COM Salida
+        ttk.Label(config_frame, text="Puerto Salida:").grid(row=0, column=3, sticky=tk.W, padx=(0, 5))
+        self.port_output_var = tk.StringVar()
+        self.port_output_combo = ttk.Combobox(config_frame, textvariable=self.port_output_var, state="readonly", width=10)
+        self.port_output_combo.grid(row=0, column=4, sticky=tk.W, padx=(0, 10))
+        
+        # Botón conectar puerto de salida
+        self.connect_output_btn = ttk.Button(config_frame, text="🔌 Conectar Salida", command=self.connect_output_port)
+        self.connect_output_btn.grid(row=0, column=5, padx=(0, 10))
+        
+        # Estado de conexión salida
+        self.status_output_var = tk.StringVar(value="❌ Desconectado")
+        status_output_label = ttk.Label(config_frame, textvariable=self.status_output_var, 
+                                       foreground="red", font=("Arial", 10, "bold"))
+        status_output_label.grid(row=0, column=6)
         
         # Cargar puertos disponibles y conectar automáticamente
         self.load_ports_config()
         
         # Área de texto para mostrar JSONs
-        text_frame = ttk.LabelFrame(main_frame, text="JSONs Recibidos", padding="5")
-        text_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        text_frame = ttk.LabelFrame(main_frame, text="Mensajes y Respuestas", padding="5")
+        text_frame.grid(row=2, column=0, columnspan=4, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         text_frame.columnconfigure(0, weight=1)
         text_frame.rowconfigure(0, weight=1)
         
@@ -248,7 +258,7 @@ class MainApplication:
         
         # Frame de controles
         control_frame = ttk.Frame(main_frame)
-        control_frame.grid(row=3, column=0, columnspan=3, pady=(10, 0))
+        control_frame.grid(row=3, column=0, columnspan=4, pady=(10, 0))
         
         # Botón limpiar
         clear_btn = ttk.Button(control_frame, text="🗑️ Limpiar", command=self.clear_text)
@@ -262,7 +272,8 @@ class MainApplication:
         # Mostrar mensaje de bienvenida
         self.log_message("🚀 CHINO iniciado correctamente")
         self.log_message("📁 Configuración cargada desde archivo")
-        self.log_message("🔌 Conectando automáticamente...")
+        self.log_message("📡 Puerto de entrada conectado automáticamente")
+        self.log_message("📋 Selecciona puerto de salida y haz clic en '🔌 Conectar Salida'")
         
     def load_ports_config(self):
         """Cargar configuración de puertos desde JSON y mostrar todos los puertos COM del sistema"""
@@ -277,7 +288,8 @@ class MainApplication:
                 created_ports = config.get('ports', [])
                 if len(created_ports) >= 2:
                     # Agregar todos los puertos al combo
-                    self.port_combo['values'] = all_ports
+                    self.port_input_combo['values'] = all_ports
+                    self.port_output_combo['values'] = all_ports
                     
                     # Seleccionar automáticamente el puerto de mayor número de los creados
                     # (el listener se conecta al puerto mayor, el sistema externo al menor)
@@ -290,52 +302,156 @@ class MainApplication:
                         
                         # Seleccionar el puerto de mayor número de los creados
                         if num2 > num1:
-                            default_port = port2  # Puerto mayor
-                            self.log_message(f"📡 Puerto por defecto: {port2} (mayor de los creados)")
-                            self.log_message(f"📡 Sistema externo debe conectar a {port1} (menor de los creados)")
+                            default_input_port = port2  # Puerto mayor
+                            default_output_port = port1  # Puerto menor
+                            self.log_message(f"📡 Puerto de entrada por defecto: {port2} (mayor de los creados)")
+                            self.log_message(f"📡 Puerto de salida por defecto: {port1} (menor de los creados)")
                         else:
-                            default_port = port1  # Puerto mayor
-                            self.log_message(f"📡 Puerto por defecto: {port1} (mayor de los creados)")
-                            self.log_message(f"📡 Sistema externo debe conectar a {port2} (menor de los creados)")
+                            default_input_port = port1  # Puerto mayor
+                            default_output_port = port2  # Puerto menor
+                            self.log_message(f"📡 Puerto de entrada por defecto: {port1} (mayor de los creados)")
+                            self.log_message(f"📡 Puerto de salida por defecto: {port2} (menor de los creados)")
                         
-                        self.port_combo.set(default_port)
+                        self.port_input_combo.set(default_input_port)
+                        self.port_output_combo.set(default_output_port)
                         
-                        # Conectar automáticamente al puerto por defecto
-                        self.connect_to_port_auto(default_port)
+                        # CONECTAR automáticamente SOLO el puerto de entrada
+                        self.connect_input_port_only(default_input_port)
                         
                     except ValueError:
                         # Si no se pueden extraer números, usar el segundo puerto por defecto
-                        self.port_combo.set(port2)
-                        self.log_message(f"📡 Puerto por defecto: {port2}")
-                        # Conectar automáticamente
-                        self.connect_to_port_auto(port2)
+                        self.port_input_combo.set(port2)
+                        self.port_output_combo.set(port1)
+                        self.log_message(f"📡 Puerto de entrada por defecto: {port2}")
+                        self.log_message(f"📡 Puerto de salida por defecto: {port1}")
+                        # CONECTAR automáticamente SOLO el puerto de entrada
+                        self.connect_input_port_only(port2)
                     
                     self.log_message(f"📁 Puertos creados: {port1} y {port2}")
                     self.log_message(f"📋 Puertos disponibles en el sistema: {len(all_ports)} puertos")
                     
-                    # Configurar evento para cambiar puerto
-                    self.port_combo.bind('<<ComboboxSelected>>', self.on_port_changed)
+                    # Configurar eventos para cambiar puerto INDEPENDIENTEMENTE
+                    self.port_input_combo.bind('<<ComboboxSelected>>', self.on_input_port_changed)
+                    self.port_output_combo.bind('<<ComboboxSelected>>', self.on_output_port_changed)
                     
                 else:
                     self.log_message("⚠️ No hay puertos configurados en el JSON")
                     if all_ports:
                         # Si no hay configuración, usar el primer puerto disponible
-                        self.port_combo['values'] = all_ports
-                        self.port_combo.set(all_ports[0])
+                        self.port_input_combo['values'] = all_ports
+                        self.port_output_combo['values'] = all_ports
+                        self.port_input_combo.set(all_ports[0])
+                        self.port_output_combo.set(all_ports[0])
                         self.log_message(f"📋 Usando primer puerto disponible: {all_ports[0]}")
-                        self.connect_to_port_auto(all_ports[0])
-                        self.port_combo.bind('<<ComboboxSelected>>', self.on_port_changed)
+                        # CONECTAR automáticamente SOLO el puerto de entrada
+                        self.connect_input_port_only(all_ports[0])
+                        self.port_input_combo.bind('<<ComboboxSelected>>', self.on_input_port_changed)
+                        self.port_output_combo.bind('<<ComboboxSelected>>', self.on_output_port_changed)
             else:
                 self.log_message("❌ Archivo de configuración no encontrado")
                 if all_ports:
                     # Si no hay configuración, usar el primer puerto disponible
-                    self.port_combo['values'] = all_ports
-                    self.port_combo.set(all_ports[0])
+                    self.port_input_combo['values'] = all_ports
+                    self.port_output_combo['values'] = all_ports
+                    self.port_input_combo.set(all_ports[0])
+                    self.port_output_combo.set(all_ports[0])
                     self.log_message(f"📋 Usando primer puerto disponible: {all_ports[0]}")
-                    self.connect_to_port_auto(all_ports[0])
-                    self.port_combo.bind('<<ComboboxSelected>>', self.on_port_changed)
+                    # CONECTAR automáticamente SOLO el puerto de entrada
+                    self.connect_input_port_only(all_ports[0])
+                    self.port_input_combo.bind('<<ComboboxSelected>>', self.on_input_port_changed)
+                    self.port_output_combo.bind('<<ComboboxSelected>>', self.on_output_port_changed)
         except Exception as e:
             self.log_message(f"❌ Error al cargar configuración: {e}")
+    
+    def connect_input_port_only(self, input_port):
+        """Conectar SOLO el puerto de entrada automáticamente"""
+        if not input_port:
+            self.log_message("❌ No hay puerto de entrada disponible para conectar")
+            self.status_input_var.set("❌ Error")
+            return
+        
+        try:
+            # Configurar puerto serial de entrada
+            self.serial_port_input = serial.Serial(
+                port=input_port,
+                baudrate=115200,
+                timeout=1,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
+            )
+            
+            self.is_listening_input = True
+            self.status_input_var.set("✅ Conectado")
+            
+            # Iniciar thread de escucha de entrada
+            self.listen_input_thread = threading.Thread(target=self.listen_for_input_data, daemon=True)
+            self.listen_input_thread.start()
+            
+            self.log_message(f"🔌 Conectado automáticamente a {input_port} (entrada)")
+            self.log_message("📡 Esperando datos JSON de entrada...")
+            self.log_message("📋 Selecciona puerto de salida y haz clic en '🔌 Conectar Salida'")
+            
+        except Exception as e:
+            self.log_message(f"❌ Error al conectar puerto de entrada: {e}")
+            self.status_input_var.set("❌ Error de conexión")
+    
+    def on_input_port_changed(self, event):
+        """Manejar cambio de puerto de entrada"""
+        input_port = self.port_input_var.get()
+        self.log_message(f"📡 Puerto de entrada cambiado a: {input_port}")
+        
+        # Reconectar automáticamente el puerto de entrada
+        if self.is_listening_input:
+            self.is_listening_input = False
+            if self.serial_port_input and self.serial_port_input.is_open:
+                self.serial_port_input.close()
+            self.log_message("🔌 Desconectado del puerto de entrada anterior")
+        
+        self.connect_input_port_only(input_port)
+    
+    def on_output_port_changed(self, event):
+        """Manejar cambio de puerto de salida"""
+        output_port = self.port_output_var.get()
+        self.log_message(f"📡 Puerto de salida cambiado a: {output_port}")
+        # NO conectar automáticamente - el usuario debe usar el botón
+    
+    def connect_output_port(self):
+        """Conectar el puerto de salida seleccionado"""
+        output_port = self.port_output_var.get()
+        
+        if not output_port:
+            self.log_message("❌ No hay puerto de salida seleccionado")
+            return
+        
+        if self.is_listening_output:
+            self.log_message("✅ Puerto de salida ya está conectado")
+            return
+        
+        try:
+            # Configurar puerto serial de salida
+            self.serial_port_output = serial.Serial(
+                port=output_port,
+                baudrate=115200,
+                timeout=1,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
+            )
+            
+            self.is_listening_output = True
+            self.status_output_var.set("✅ Conectado")
+            
+            # Iniciar thread de escucha de respuestas de salida
+            self.listen_output_thread = threading.Thread(target=self.listen_for_output_responses, daemon=True)
+            self.listen_output_thread.start()
+            
+            self.log_message(f"🔌 Puerto de salida conectado a {output_port}")
+            self.log_message("📡 Sistema completo: Esperando datos JSON...")
+            
+        except Exception as e:
+            self.log_message(f"❌ Error al conectar puerto de salida: {e}")
+            self.status_output_var.set("❌ Error de conexión")
     
     def get_all_com_ports(self):
         """Obtener todos los puertos COM disponibles en el sistema"""
@@ -350,63 +466,14 @@ class MainApplication:
             self.log_message(f"⚠️ Error al obtener puertos del sistema: {e}")
             return []
     
-    def on_port_changed(self, event):
-        """Manejar cambio de puerto seleccionado"""
-        new_port = self.port_var.get()
-        if new_port and new_port != getattr(self, 'current_port', None):
-            self.log_message(f"🔄 Cambiando a puerto: {new_port}")
-            
-            # Desconectar del puerto actual
-            if self.is_listening:
-                self.is_listening = False
-                if self.serial_port and self.serial_port.is_open:
-                    self.serial_port.close()
-                self.log_message("🔌 Desconectado del puerto anterior")
-            
-            # Conectar al nuevo puerto
-            self.connect_to_port_auto(new_port)
-            self.current_port = new_port
-    
-    def connect_to_port_auto(self, port):
-        """Conectar automáticamente al puerto COM seleccionado"""
-        if not port:
-            self.log_message("❌ No hay puerto disponible para conectar")
-            self.status_var.set("❌ Error")
-            return
-        
-        try:
-            # Configurar puerto serial
-            self.serial_port = serial.Serial(
-                port=port,
-                baudrate=115200,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            )
-            
-            self.is_listening = True
-            self.status_var.set("✅ Conectado")
-            
-            # Iniciar thread de escucha
-            self.listen_thread = threading.Thread(target=self.listen_for_data, daemon=True)
-            self.listen_thread.start()
-            
-            self.log_message(f"🔌 Conectado automáticamente a {port}")
-            self.log_message("📡 Esperando datos JSON...")
-            
-        except Exception as e:
-            self.log_message(f"❌ Error al conectar automáticamente a {port}: {e}")
-            self.status_var.set("❌ Error de conexión")
-    
-    def listen_for_data(self):
-        """Escuchar datos del puerto COM en un thread separado"""
+    def listen_for_input_data(self):
+        """Escuchar datos del puerto de entrada y reenviarlos al puerto de salida"""
         buffer = ""
         
-        while self.is_listening and self.serial_port and self.serial_port.is_open:
+        while self.is_listening_input and self.serial_port_input and self.serial_port_input.is_open:
             try:
-                if self.serial_port.in_waiting > 0:
-                    data = self.serial_port.read(self.serial_port.in_waiting).decode('utf-8', errors='ignore')
+                if self.serial_port_input.in_waiting > 0:
+                    data = self.serial_port_input.read(self.serial_port_input.in_waiting).decode('utf-8', errors='ignore')
                     buffer += data
                     
                     # Buscar JSONs completos
@@ -434,45 +501,109 @@ class MainApplication:
                             json_str = buffer[start:end]
                             buffer = buffer[end:]
                             
-                            # Procesar JSON
-                            self.process_json(json_str)
+                            # Reenviar al puerto de salida
+                            self.forward_to_output(json_str)
                         else:
                             # JSON incompleto, esperar más datos
                             break
                             
             except Exception as e:
-                self.log_message(f"❌ Error al leer datos: {e}")
+                self.log_message(f"❌ Error al leer datos de entrada: {e}")
                 break
         
-        self.log_message("🔌 Thread de escucha terminado")
+        self.log_message("🔌 Thread de escucha de entrada terminado")
     
-    def process_json(self, json_str):
-        """Procesar JSON recibido"""
+    def listen_for_output_responses(self):
+        """Escuchar respuestas del puerto de salida y reenviarlas al puerto de entrada"""
+        buffer = ""
+        
+        while self.is_listening_output and self.serial_port_output and self.serial_port_output.is_open:
+            try:
+                if self.serial_port_output.in_waiting > 0:
+                    data = self.serial_port_output.read(self.serial_port_output.in_waiting).decode('utf-8', errors='ignore')
+                    buffer += data
+                    
+                    # Buscar JSONs completos
+                    while True:
+                        # Buscar inicio de JSON
+                        start = buffer.find('{')
+                        if start == -1:
+                            break
+                        
+                        # Buscar fin de JSON
+                        brace_count = 0
+                        end = -1
+                        
+                        for i in range(start, len(buffer)):
+                            if buffer[i] == '{':
+                                brace_count += 1
+                            elif buffer[i] == '}':
+                                brace_count -= 1
+                                if brace_count == 0:
+                                    end = i + 1
+                                    break
+                        
+                        if end > start:
+                            # Extraer JSON completo
+                            json_str = buffer[start:end]
+                            buffer = buffer[end:]
+                            
+                            # Reenviar al puerto de entrada
+                            self.forward_to_input(json_str)
+                        else:
+                            # JSON incompleto, esperar más datos
+                            break
+                            
+            except Exception as e:
+                self.log_message(f"❌ Error al leer respuestas de salida: {e}")
+                break
+        
+        self.log_message("🔌 Thread de escucha de respuestas terminado")
+    
+    def forward_to_output(self, json_str):
+        """Reenviar JSON recibido al puerto de salida"""
         try:
-            # Intentar parsear JSON
-            json_data = json.loads(json_str)
-            
-            # Incrementar contador
-            self.message_count += 1
-            
-            # Mostrar en interfaz (usar after para thread safety)
-            self.root.after(0, self.display_json, json_str, json_data)
-            
-        except json.JSONDecodeError as e:
-            self.log_message(f"⚠️ JSON inválido: {e}")
-            self.log_message(f"   Datos: {json_str[:100]}...")
+            if self.serial_port_output and self.serial_port_output.is_open:
+                # Enviar JSON tal cual
+                self.serial_port_output.write(json_str.encode('utf-8'))
+                self.serial_port_output.flush()
+                
+                # Mostrar en interfaz
+                self.message_count += 1
+                self.root.after(0, self.display_sent_message, json_str)
+                
+        except Exception as e:
+            self.log_message(f"❌ Error al reenviar a salida: {e}")
     
-    def display_json(self, json_str, json_data):
-        """Mostrar JSON en la interfaz"""
+    def forward_to_input(self, json_str):
+        """Reenviar respuesta recibida al puerto de entrada"""
+        try:
+            if self.serial_port_input and self.serial_port_input.is_open:
+                # Enviar respuesta tal cual
+                self.serial_port_input.write(json_str.encode('utf-8'))
+                self.serial_port_input.flush()
+                
+                # Mostrar en interfaz
+                self.root.after(0, self.display_received_response, json_str)
+                
+        except Exception as e:
+            self.log_message(f"❌ Error al reenviar respuesta a entrada: {e}")
+    
+    def display_sent_message(self, json_str):
+        """Mostrar mensaje enviado en la interfaz"""
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         
         # Formatear JSON para mostrar
-        formatted_json = json.dumps(json_data, indent=2, ensure_ascii=False)
+        try:
+            json_data = json.loads(json_str)
+            formatted_json = json.dumps(json_data, indent=2, ensure_ascii=False)
+        except:
+            formatted_json = json_str
         
         # Agregar al área de texto
         self.text_area.insert(tk.END, f"\n{'='*60}\n")
-        self.text_area.insert(tk.END, f"📨 Mensaje #{self.message_count} - {timestamp}\n")
-        self.text_area.insert(tk.END, f"{formatted_json}\n")
+        self.text_area.insert(tk.END, f"📤 Mensaje #{self.message_count} - {timestamp}\n")
+        self.text_area.insert(tk.END, f"Enviado a {self.port_output_var.get()}: {formatted_json}\n")
         self.text_area.insert(tk.END, f"{'='*60}\n")
         
         # Scroll al final
@@ -480,6 +611,27 @@ class MainApplication:
         
         # Actualizar contador
         self.counter_var.set(f"Mensajes: {self.message_count}")
+    
+    def display_received_response(self, json_str):
+        """Mostrar respuesta recibida en la interfaz"""
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        
+        # Formatear JSON para mostrar
+        try:
+            json_data = json.loads(json_str)
+            formatted_json = json.dumps(json_data, indent=2, ensure_ascii=False)
+        except:
+            formatted_json = json_str
+        
+        # Agregar al área de texto
+        self.text_area.insert(tk.END, f"\n{'='*60}\n")
+        self.text_area.insert(tk.END, f"📥 Respuesta - {timestamp}\n")
+        self.text_area.insert(tk.END, f"Recibida de {self.port_output_var.get()}: {formatted_json}\n")
+        self.text_area.insert(tk.END, f"Reenviada a {self.port_input_var.get()}\n")
+        self.text_area.insert(tk.END, f"{'='*60}\n")
+        
+        # Scroll al final
+        self.text_area.see(tk.END)
     
     def log_message(self, message):
         """Agregar mensaje de log"""
@@ -560,30 +712,94 @@ Características:
         messagebox.showinfo("Acerca de", about_text)
     
     def reconnect(self):
-        """Reconectar al puerto COM actual"""
-        if self.is_listening:
-            # Desconectar primero
-            self.is_listening = False
-            if self.serial_port and self.serial_port.is_open:
-                self.serial_port.close()
-            self.log_message("🔌 Desconectado para reconectar")
+        """Reconectar a los puertos COM actuales"""
+        input_port = self.port_input_var.get()
+        output_port = self.port_output_var.get()
         
-        # Obtener puerto actual
-        port = self.port_var.get()
-        if port:
-            self.status_var.set("⏳ Reconectando...")
-            self.log_message(f"🔄 Reconectando a {port}...")
-            self.connect_to_port_auto(port)
+        if input_port and output_port:
+            self.log_message(f"🔄 Reconectando: {input_port} → {output_port}")
+            
+            # Desconectar primero
+            if self.is_listening_input:
+                self.is_listening_input = False
+                if self.serial_port_input and self.serial_port_input.is_open:
+                    self.serial_port_input.close()
+            
+            if self.is_listening_output:
+                self.is_listening_output = False
+                if self.serial_port_output and self.serial_port_output.is_open:
+                    self.serial_port_output.close()
+            
+            # Reconectar ambos puertos
+            self.status_input_var.set("⏳ Reconectando...")
+            self.status_output_var.set("⏳ Reconectando...")
+            self.connect_to_port_auto(input_port, output_port)
         else:
-            self.log_message("❌ No hay puerto seleccionado para reconectar")
+            self.log_message("❌ No hay puertos seleccionados para reconectar")
+    
+    def connect_to_port_auto(self, input_port, output_port):
+        """Conectar automáticamente a los puertos COM de entrada y salida"""
+        if not input_port or not output_port:
+            self.log_message("❌ No hay puertos disponibles para conectar")
+            self.status_input_var.set("❌ Error")
+            self.status_output_var.set("❌ Error")
+            return
+        
+        try:
+            # Configurar puerto serial de entrada
+            self.serial_port_input = serial.Serial(
+                port=input_port,
+                baudrate=115200,
+                timeout=1,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
+            )
+            
+            # Configurar puerto serial de salida
+            self.serial_port_output = serial.Serial(
+                port=output_port,
+                baudrate=115200,
+                timeout=1,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE
+            )
+            
+            self.is_listening_input = True
+            self.is_listening_output = True
+            self.status_input_var.set("✅ Conectado")
+            self.status_output_var.set("✅ Conectado")
+            
+            # Iniciar thread de escucha de entrada
+            self.listen_input_thread = threading.Thread(target=self.listen_for_input_data, daemon=True)
+            self.listen_input_thread.start()
+            
+            # Iniciar thread de escucha de respuestas de salida
+            self.listen_output_thread = threading.Thread(target=self.listen_for_output_responses, daemon=True)
+            self.listen_output_thread.start()
+            
+            self.log_message(f"🔌 Conectado automáticamente a {input_port} (entrada) y {output_port} (salida)")
+            self.log_message("📡 Esperando datos JSON...")
+            
+        except Exception as e:
+            self.log_message(f"❌ Error al conectar automáticamente: {e}")
+            self.status_input_var.set("❌ Error de conexión")
+            self.status_output_var.set("❌ Error de conexión")
     
     def on_closing(self):
         """Manejar cierre de ventana"""
-        if self.is_listening:
-            self.is_listening = False
-            if self.serial_port and self.serial_port.is_open:
-                self.serial_port.close()
-            self.log_message("🔌 Desconectado al cerrar aplicación")
+        if self.is_listening_input:
+            self.is_listening_input = False
+            if self.serial_port_input and self.serial_port_input.is_open:
+                self.serial_port_input.close()
+            self.log_message("🔌 Desconectado del puerto de entrada al cerrar aplicación")
+        
+        if self.is_listening_output:
+            self.is_listening_output = False
+            if self.serial_port_output and self.serial_port_output.is_open:
+                self.serial_port_output.close()
+            self.log_message("🔌 Desconectado del puerto de salida al cerrar aplicación")
         
         if messagebox.askokcancel("Salir", "¿Deseas salir de la aplicación?"):
             self.root.destroy()
