@@ -8,7 +8,7 @@ echo.
 
 cd /d "C:\Users\santi\Desktop\CHINO"
 
-python main_app.py
+python src/main_app.py
 
 echo.
 echo ========================================

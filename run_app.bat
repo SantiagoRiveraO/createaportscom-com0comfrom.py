@@ -1,18 +1,18 @@
 @echo off
 echo ========================================
-echo    INTERFAZ DE ESCUCHA DE PUERTOS COM
+echo    CHINO - Monitor de Puertos COM
 echo ========================================
 echo.
-echo Iniciando interfaz de escucha...
+echo Iniciando aplicación...
 echo.
 
 cd /d "C:\Users\santi\Desktop\CHINO"
 
-python com_listener.py
+python src/main_app.py
 
 echo.
 echo ========================================
-echo Interfaz cerrada.
+echo Aplicación cerrada.
 echo ========================================
 echo.
 pause 

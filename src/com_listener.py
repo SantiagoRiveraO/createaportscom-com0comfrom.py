@@ -22,7 +22,7 @@ class COMListener:
         # Variables
         self.serial_port = None
         self.is_listening = False
-        self.config_file = "com_ports_config.json"
+        self.config_file = "config/com_ports_config.json"
         
         # Crear interfaz
         self.create_widgets()

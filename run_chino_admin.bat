@@ -9,7 +9,7 @@ echo.
 
 cd /d "C:\Users\santi\Desktop\CHINO"
 
-powershell -Command "Start-Process python -ArgumentList 'main_app.py' -Verb RunAs"
+powershell -Command "Start-Process python -ArgumentList 'src/main_app.py' -Verb RunAs"
 
 echo.
 echo ========================================

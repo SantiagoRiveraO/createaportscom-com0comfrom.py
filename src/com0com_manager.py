@@ -12,7 +12,7 @@ class Com0comManager:
     Clase para gestionar puertos COM virtuales usando com0com
     """
     
-    def __init__(self, config_file="com_ports_config.json"):
+    def __init__(self, config_file="config/com_ports_config.json"):
         self.com0com_path = None
         self.setupc_path = None
         self.config_file = config_file
@@ -112,9 +112,9 @@ class Com0comManager:
             print(f"❌ Puertos existentes no están disponibles, se crearán nuevos")
             return None, None
     
-    def _ports_exist_and_available(self, com1: str, com2: str) -> bool:
+    def _ports_exist_in_com0com(self, com1: str, com2: str) -> bool:
         """
-        Verifica si los puertos existen y están disponibles para comunicación
+        Verifica si los puertos existen en com0com (sin probar comunicación)
         """
         try:
             # Verificar si los puertos están en la lista de com0com
@@ -132,11 +132,23 @@ class Com0comManager:
                 elif com2 in line and 'CNCB' in line:
                     com2_found = True
             
-            if com1_found and com2_found:
-                # Probar comunicación básica
-                return self.test_communication(com1, com2)
+            return com1_found and com2_found
             
+        except Exception as e:
+            print(f"⚠️ Error al verificar puertos en com0com: {e}")
             return False
+
+    def _ports_exist_and_available(self, com1: str, com2: str) -> bool:
+        """
+        Verifica si los puertos existen y están disponibles para comunicación
+        """
+        try:
+            # Verificar que existan en com0com
+            if not self._ports_exist_in_com0com(com1, com2):
+                return False
+            
+            # Probar comunicación básica
+            return self.test_communication(com1, com2)
             
         except Exception as e:
             print(f"⚠️ Error al verificar puertos: {e}")
