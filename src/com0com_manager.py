@@ -3,8 +3,42 @@ import subprocess
 import time
 import winreg
 import json
+import logging
 from typing import Tuple, Optional, List
 import serial
+
+# Configurar sistema de logging
+def setup_logging():
+    """Configura el sistema de logging para la aplicación"""
+    # Crear directorio de logs si no existe
+    log_dir = "logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    
+    # Configurar formato de logging
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+    
+    # Configurar logging para archivo
+    file_handler = logging.FileHandler(os.path.join(log_dir, 'com0com_manager.log'), encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(log_format, date_format))
+    
+    # Configurar logging para consola
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    
+    # Configurar logger principal
+    logger = logging.getLogger('Com0comManager')
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+# Crear logger global
+logger = setup_logging()
 
 
 class Com0comManager:
@@ -16,12 +50,15 @@ class Com0comManager:
         self.com0com_path = None
         self.setupc_path = None
         self.config_file = config_file
+        logger.info("🔧 Inicializando Com0comManager")
         self._find_com0com_installation()
     
     def _find_com0com_installation(self) -> bool:
         """
         Detecta si com0com está instalado y encuentra las rutas necesarias
         """
+        logger.info("🔍 Buscando instalación de Com0com...")
+        
         # Rutas comunes donde se instala com0com
         possible_paths = [
             r"C:\Program Files\com0com\setupc.exe",
@@ -35,18 +72,19 @@ class Com0comManager:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\com0com") as key:
                 install_path, _ = winreg.QueryValueEx(key, "InstallPath")
                 possible_paths.insert(0, os.path.join(install_path, "setupc.exe"))
-        except (FileNotFoundError, OSError):
-            pass
+                logger.debug(f"📋 Com0com encontrado en registro: {install_path}")
+        except (FileNotFoundError, OSError) as e:
+            logger.debug(f"📋 Com0com no encontrado en registro: {e}")
         
         # Verificar si existe setupc.exe en alguna de las rutas
         for path in possible_paths:
             if os.path.exists(path):
                 self.setupc_path = path
                 self.com0com_path = os.path.dirname(path)
-                print(f"✅ Com0com encontrado en: {self.com0com_path}")
+                logger.info(f"✅ Com0com encontrado en: {self.com0com_path}")
                 return True
         
-        print("❌ Com0com no encontrado. Por favor instálalo desde: https://sourceforge.net/projects/com0com/")
+        logger.error("❌ Com0com no encontrado. Por favor instálalo desde: https://sourceforge.net/projects/com0com/")
         return False
     
     def _load_ports_config(self) -> dict:
@@ -58,7 +96,7 @@ class Com0comManager:
                 with open(self.config_file, 'r') as f:
                     return json.load(f)
         except Exception as e:
-            print(f"⚠️ Error al cargar configuración: {e}")
+            logger.warning(f"⚠️ Error al cargar configuración: {e}")
         return {"ports": [], "created_at": None}
     
     def _save_ports_config(self, com1: str, com2: str) -> bool:
@@ -73,23 +111,23 @@ class Com0comManager:
             
             # Obtener ruta absoluta del archivo
             abs_path = os.path.abspath(self.config_file)
-            print(f"💾 Guardando configuración en: {abs_path}")
+            logger.info(f"💾 Guardando configuración en: {abs_path}")
             
             with open(self.config_file, 'w') as f:
                 json.dump(config, f, indent=2)
             
             # Verificar que el archivo se creó
             if os.path.exists(self.config_file):
-                print(f"✅ Archivo creado exitosamente: {com1} y {com2}")
-                print(f"📁 Ubicación: {abs_path}")
+                logger.info(f"✅ Archivo creado exitosamente: {com1} y {com2}")
+                logger.info(f"📁 Ubicación: {abs_path}")
                 return True
             else:
-                print(f"❌ Error: El archivo no se creó en {abs_path}")
+                logger.error(f"❌ Error: El archivo no se creó en {abs_path}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error al guardar configuración: {e}")
-            print(f"📁 Intentando guardar en: {os.path.abspath(self.config_file)}")
+            logger.error(f"❌ Error al guardar configuración: {e}")
+            logger.warning(f"📁 Intentando guardar en: {os.path.abspath(self.config_file)}")
             return False
     
     def _check_existing_ports(self) -> Tuple[Optional[str], Optional[str]]:
@@ -102,14 +140,14 @@ class Com0comManager:
             return None, None
         
         com1, com2 = config["ports"][0], config["ports"][1]
-        print(f"🔍 Verificando puertos existentes: {com1} y {com2}")
+        logger.info(f"🔍 Verificando puertos existentes: {com1} y {com2}")
         
         # Verificar si los puertos están realmente disponibles
         if self._ports_exist_and_available(com1, com2):
-            print(f"✅ Puertos existentes encontrados y disponibles: {com1} y {com2}")
+            logger.info(f"✅ Puertos existentes encontrados y disponibles: {com1} y {com2}")
             return com1, com2
         else:
-            print(f"❌ Puertos existentes no están disponibles, se crearán nuevos")
+            logger.warning(f"❌ Puertos existentes no están disponibles, se crearán nuevos")
             return None, None
     
     def _ports_exist_in_com0com(self, com1: str, com2: str) -> bool:
@@ -135,7 +173,7 @@ class Com0comManager:
             return com1_found and com2_found
             
         except Exception as e:
-            print(f"⚠️ Error al verificar puertos en com0com: {e}")
+            logger.warning(f"⚠️ Error al verificar puertos en com0com: {e}")
             return False
 
     def _ports_exist_and_available(self, com1: str, com2: str) -> bool:
@@ -151,7 +189,7 @@ class Com0comManager:
             return self.test_communication(com1, com2)
             
         except Exception as e:
-            print(f"⚠️ Error al verificar puertos: {e}")
+            logger.warning(f"⚠️ Error al verificar puertos: {e}")
             return False
     
     def get_or_create_paired_ports(self) -> Tuple[str, str]:
@@ -161,30 +199,30 @@ class Com0comManager:
         Returns:
             Tuple[str, str]: Par de puertos disponibles
         """
-        print("🔍 Verificando puertos existentes...")
+        logger.info("🔍 Verificando puertos existentes...")
         
         # Verificar si ya existen puertos configurados
         existing_com1, existing_com2 = self._check_existing_ports()
         
         if existing_com1 and existing_com2:
-            print(f"✅ Reutilizando puertos existentes: {existing_com1} y {existing_com2}")
+            logger.info(f"✅ Reutilizando puertos existentes: {existing_com1} y {existing_com2}")
             return existing_com1, existing_com2
         
         # Si no existen, crear nuevos
-        print("🆕 Creando nuevos puertos...")
+        logger.info("🆕 Creando nuevos puertos...")
         new_com1, new_com2 = self.create_auto_paired_ports()
         
         if new_com1 and new_com2:
             # Guardar la nueva configuración
-            print(f"💾 Guardando configuración de puertos nuevos...")
+            logger.info(f"💾 Guardando configuración de puertos nuevos...")
             save_success = self._save_ports_config(new_com1, new_com2)
             if save_success:
-                print(f"✅ Configuración guardada correctamente")
+                logger.info(f"✅ Configuración guardada correctamente")
             else:
-                print(f"⚠️ Error al guardar configuración, pero los puertos funcionan")
+                logger.warning(f"⚠️ Error al guardar configuración, pero los puertos funcionan")
             return new_com1, new_com2
         else:
-            print("❌ Error al crear nuevos puertos")
+            logger.error("❌ Error al crear nuevos puertos")
             return None, None
     
     def clear_ports_config(self) -> bool:
@@ -194,10 +232,10 @@ class Com0comManager:
         try:
             if os.path.exists(self.config_file):
                 os.remove(self.config_file)
-                print(f"🗑️ Configuración eliminada: {self.config_file}")
+                logger.info(f"🗑️ Configuración eliminada: {self.config_file}")
                 return True
         except Exception as e:
-            print(f"❌ Error al eliminar configuración: {e}")
+            logger.error(f"❌ Error al eliminar configuración: {e}")
         return False
     
     def is_installed(self) -> bool:
@@ -233,10 +271,10 @@ class Com0comManager:
             
             return ports
         except subprocess.TimeoutExpired:
-            print("⚠️ Timeout al listar puertos")
+            logger.warning("⚠️ Timeout al listar puertos")
             return []
         except Exception as e:
-            print(f"❌ Error al listar puertos: {e}")
+            logger.error(f"❌ Error al listar puertos: {e}")
             return []
     
     def get_available_com_ports(self) -> List[str]:
@@ -264,16 +302,16 @@ class Com0comManager:
             all_ports = [f"COM{i}" for i in range(1, 51)]
             available_ports = [port for port in all_ports if port not in busy_ports]
             
-            print(f"📊 Puertos ocupados: {busy_ports}")
-            print(f"📊 Puertos disponibles: {available_ports[:10]}...")  # Mostrar solo los primeros 10
+            logger.info(f"📊 Puertos ocupados: {busy_ports}")
+            logger.info(f"📊 Puertos disponibles: {available_ports[:10]}...")  # Mostrar solo los primeros 10
             
             return available_ports
             
         except subprocess.TimeoutExpired:
-            print("⚠️ Timeout al verificar puertos disponibles")
+            logger.warning("⚠️ Timeout al verificar puertos disponibles")
             return []
         except Exception as e:
-            print(f"❌ Error al verificar puertos disponibles: {e}")
+            logger.error(f"❌ Error al verificar puertos disponibles: {e}")
             return []
     
     def find_available_pair(self) -> Tuple[str, str]:
@@ -286,7 +324,7 @@ class Com0comManager:
         available_ports = self.get_available_com_ports()
         
         if len(available_ports) < 2:
-            print("❌ No hay suficientes puertos COM disponibles")
+            logger.error("❌ No hay suficientes puertos COM disponibles")
             return None, None
         
         # Buscar dos puertos consecutivos disponibles
@@ -300,12 +338,12 @@ class Com0comManager:
                 num2 = int(port2[3:])  # Extraer número de COM21 -> 21
                 
                 if num2 == num1 + 1:
-                    print(f"✅ Par disponible encontrado: {port1} y {port2}")
+                    logger.info(f"✅ Par disponible encontrado: {port1} y {port2}")
                     return port1, port2
             except ValueError:
                 continue
         
-        print("❌ No se encontró un par de puertos consecutivos disponibles")
+        logger.error("❌ No se encontró un par de puertos consecutivos disponibles")
         return None, None
     
     def create_paired_ports(self, com1: str, com2: str) -> bool:
@@ -320,24 +358,24 @@ class Com0comManager:
             bool: True si se crearon exitosamente, False en caso contrario
         """
         if not self.is_installed():
-            print("❌ Com0com no está instalado")
+            logger.error("❌ Com0com no está instalado")
             return False
         
         try:
             # Crear un par de puertos conectados usando el comando correcto
             # Usar el directorio de com0com como directorio de trabajo
-            print(f"🔧 Creando par de puertos {com1} y {com2}...")
+            logger.info(f"🔧 Creando par de puertos {com1} y {com2}...")
             # Usar PortName=COM# para activar automáticamente "use Ports class"
             # Agregar --silent para suprimir diálogos
             result = subprocess.run([self.setupc_path, "--silent", "install", "PortName=COM#", "PortName=COM#"], 
                                    capture_output=True, text=True, timeout=10, cwd=self.com0com_path)
-            print(f"   Resultado: {result.stdout.strip()}")
+            logger.info(f"   Resultado: {result.stdout.strip()}")
             if result.returncode != 0:
-                print(f"   Error: {result.stderr.strip()}")
+                logger.error(f"   Error: {result.stderr.strip()}")
                 return False
             
             # Asignar nombres específicos a los puertos creados
-            print(f"🔧 Asignando nombres específicos {com1} y {com2}...")
+            logger.info(f"🔧 Asignando nombres específicos {com1} y {com2}...")
             list_result = subprocess.run([self.setupc_path, "list"], 
                                        capture_output=True, text=True, timeout=10, cwd=self.com0com_path)
             
@@ -363,28 +401,28 @@ class Com0comManager:
             if cnca_id and cncb_id:
                 try:
                     # Asignar nombres específicos con timeout más largo
-                    print(f"   Asignando {cnca_id} -> {com1}...")
+                    logger.info(f"   Asignando {cnca_id} -> {com1}...")
                     result2 = subprocess.run([self.setupc_path, "--silent", "change", cnca_id, f"RealPortName={com1}"], 
                                            capture_output=True, text=True, timeout=30, cwd=self.com0com_path)
-                    print(f"   {cnca_id} -> {com1}: {result2.stdout.strip()}")
+                    logger.info(f"   {cnca_id} -> {com1}: {result2.stdout.strip()}")
                     
-                    print(f"   Asignando {cncb_id} -> {com2}...")
+                    logger.info(f"   Asignando {cncb_id} -> {com2}...")
                     result3 = subprocess.run([self.setupc_path, "--silent", "change", cncb_id, f"RealPortName={com2}"], 
                                            capture_output=True, text=True, timeout=30, cwd=self.com0com_path)
-                    print(f"   {cncb_id} -> {com2}: {result3.stdout.strip()}")
+                    logger.info(f"   {cncb_id} -> {com2}: {result3.stdout.strip()}")
                     
                     # Esperar un momento para que los cambios se apliquen
                     time.sleep(1)
                 except subprocess.TimeoutExpired:
-                    print(f"   ⚠️ Timeout al asignar nombres específicos, pero los puertos se crearon correctamente")
-                    print(f"   Los puertos están disponibles como COM# y funcionarán normalmente")
+                    logger.warning(f"   ⚠️ Timeout al asignar nombres específicos, pero los puertos se crearon correctamente")
+                    logger.info(f"   Los puertos están disponibles como COM# y funcionarán normalmente")
                 except Exception as e:
-                    print(f"   ⚠️ Error al asignar nombres específicos: {e}")
-                    print(f"   Los puertos se crearon pero mantienen nombres genéricos")
+                    logger.warning(f"   ⚠️ Error al asignar nombres específicos: {e}")
+                    logger.info(f"   Los puertos se crearon pero mantienen nombres genéricos")
             else:
-                print(f"   ⚠️ No se pudieron encontrar los puertos recién creados")
+                logger.warning(f"   ⚠️ No se pudieron encontrar los puertos recién creados")
             
-            print(f"⚙️ Configurando parámetros de comunicación...")
+            logger.info(f"⚙️ Configurando parámetros de comunicación...")
             
             # Encontrar los identificadores CNCA y CNCB del par creado
             list_result = subprocess.run([self.setupc_path, "list"], 
@@ -411,31 +449,31 @@ class Com0comManager:
             
             if cnca_id and cncb_id:
                 # Configurar ambos puertos sin emulación de baudrate
-                print(f"   Configurando {cnca_id}...")
+                logger.info(f"   Configurando {cnca_id}...")
                 result4 = subprocess.run([self.setupc_path, "--silent", "change", cnca_id, "EmuBR=no"], 
                                        capture_output=True, text=True, timeout=10, cwd=self.com0com_path)
-                print(f"   {cnca_id} EmuBR=no: {result4.stdout.strip()}")
+                logger.info(f"   {cnca_id} EmuBR=no: {result4.stdout.strip()}")
                 
-                print(f"   Configurando {cncb_id}...")
+                logger.info(f"   Configurando {cncb_id}...")
                 result5 = subprocess.run([self.setupc_path, "--silent", "change", cncb_id, "EmuBR=no"], 
                                        capture_output=True, text=True, timeout=10, cwd=self.com0com_path)
-                print(f"   {cncb_id} EmuBR=no: {result5.stdout.strip()}")
+                logger.info(f"   {cncb_id} EmuBR=no: {result5.stdout.strip()}")
                 
-                print(f"   ✅ Ambos puertos configurados sin emulación de baudrate")
+                logger.info(f"   ✅ Ambos puertos configurados sin emulación de baudrate")
             else:
-                print(f"   ⚠️ No se pudieron encontrar los identificadores CNCA/CNCB")
+                logger.warning(f"   ⚠️ No se pudieron encontrar los identificadores CNCA/CNCB")
             
             # Esperar un momento para que los cambios se apliquen
             time.sleep(2)
             
-            print(f"✅ Puertos creados y configurados exitosamente")
+            logger.info(f"✅ Puertos creados y configurados exitosamente")
             return True
             
         except subprocess.TimeoutExpired:
-            print("⚠️ Timeout al crear puertos")
+            logger.warning("⚠️ Timeout al crear puertos")
             return False
         except Exception as e:
-            print(f"❌ Error inesperado: {e}")
+            logger.error(f"❌ Error inesperado: {e}")
             return False
     
     def create_auto_paired_ports(self) -> Tuple[str, str]:
@@ -445,14 +483,14 @@ class Com0comManager:
         Returns:
             Tuple[str, str]: Par de puertos creados (ej: ("COM20", "COM21")) o (None, None) si falla
         """
-        print("🔍 Buscando par de puertos disponibles...")
+        logger.info("🔍 Buscando par de puertos disponibles...")
         com1, com2 = self.find_available_pair()
         
         if com1 is None or com2 is None:
-            print("❌ No se pudo encontrar un par de puertos disponibles")
+            logger.error("❌ No se pudo encontrar un par de puertos disponibles")
             return None, None
         
-        print(f"🎯 Creando par automático en {com1} y {com2}...")
+        logger.info(f"🎯 Creando par automático en {com1} y {com2}...")
         success = self.create_paired_ports(com1, com2)
         
         if success:
@@ -483,11 +521,11 @@ class Com0comManager:
                     final_com2 = "COM# (segundo puerto del par)"
                     break
             
-            print(f"✅ Par automático creado exitosamente")
-            print(f"   Puertos: {final_com1} y {final_com2}")
+            logger.info(f"✅ Par automático creado exitosamente")
+            logger.info(f"   Puertos: {final_com1} y {final_com2}")
             return com1, com2  # Retornar los nombres originales para compatibilidad
         else:
-            print(f"❌ Error al crear par automático")
+            logger.error(f"❌ Error al crear par automático")
             return None, None
     
     def remove_ports(self, com1: str, com2: str) -> bool:
@@ -535,17 +573,17 @@ class Com0comManager:
                 # Eliminar el par usando el número
                 subprocess.run([self.setupc_path, "remove", pair_number], 
                              check=True, capture_output=True, timeout=10, cwd=self.com0com_path)
-                print(f"✅ Par de puertos {com1} y {com2} (par #{pair_number}) eliminado exitosamente")
+                logger.info(f"✅ Par de puertos {com1} y {com2} (par #{pair_number}) eliminado exitosamente")
                 return True
             else:
-                print(f"❌ No se pudo encontrar el par de puertos {com1} y {com2}")
+                logger.warning(f"❌ No se pudo encontrar el par de puertos {com1} y {com2}")
                 return False
             
         except subprocess.CalledProcessError as e:
-            print(f"❌ Error al eliminar puertos: {e}")
+            logger.error(f"❌ Error al eliminar puertos: {e}")
             return False
         except Exception as e:
-            print(f"❌ Error inesperado: {e}")
+            logger.error(f"❌ Error inesperado: {e}")
             return False
     
     def test_communication(self, com1: str, com2: str) -> bool:
@@ -572,12 +610,12 @@ class Com0comManager:
                 received = port2.read(len(test_message))
                 
                 if received == test_message:
-                    print(f"✅ Comunicación exitosa entre {com1} y {com2}")
+                    logger.info(f"✅ Comunicación exitosa entre {com1} y {com2}")
                     return True
                 else:
-                    print(f"❌ Error en comunicación: enviado={test_message}, recibido={received}")
+                    logger.error(f"❌ Error en comunicación: enviado={test_message}, recibido={received}")
                     return False
                     
         except Exception as e:
-            print(f"❌ Error al probar comunicación: {e}")
+            logger.error(f"❌ Error al probar comunicación: {e}")
             return False 

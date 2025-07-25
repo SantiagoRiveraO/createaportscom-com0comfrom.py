@@ -1,0 +1,61 @@
+2025-07-25 11:42:36 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 11:42:36 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 11:42:36 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 11:42:36 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 11:42:36 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 11:42:36 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 11:42:36 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 11:42:36 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 11:44:44 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 11:44:44 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 11:44:44 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 11:44:44 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 11:44:44 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 11:44:44 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 11:44:44 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 11:44:44 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 11:44:49 - Com0comManager - INFO - 🔍 Buscando par de puertos disponibles...
+2025-07-25 11:44:49 - Com0comManager - INFO - 📊 Puertos ocupados: ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'COM10']
+2025-07-25 11:44:49 - Com0comManager - INFO - 📊 Puertos disponibles: ['COM11', 'COM12', 'COM13', 'COM14', 'COM15', 'COM16', 'COM17', 'COM18', 'COM19', 'COM20']...
+2025-07-25 11:44:49 - Com0comManager - INFO - ✅ Par disponible encontrado: COM11 y COM12
+2025-07-25 11:44:49 - Com0comManager - INFO - 🎯 Creando par automático en COM11 y COM12...
+2025-07-25 11:44:49 - Com0comManager - INFO - 🔧 Creando par de puertos COM11 y COM12...
+2025-07-25 11:44:50 - Com0comManager - INFO -    Resultado: CNCA1 PortName=COM#
+       CNCB1 PortName=COM#
+2025-07-25 11:44:50 - Com0comManager - INFO - 🔧 Asignando nombres específicos COM11 y COM12...
+2025-07-25 11:44:50 - Com0comManager - INFO -    Asignando CNCA1 -> COM11...
+2025-07-25 11:44:50 - Com0comManager - INFO -    CNCA1 -> COM11: CNCA0 PortName=COM#,RealPortName=COM3,EmuBR=yes
+       CNCB0 PortName=COM#,RealPortName=COM4,EmuBR=yes
+       CNCA1 PortName=COM#
+change CNCA1 PortName=COM#,RealPortName=COM11
+Restarted CNCA1 com0com\port \Device\com0com11
+       CNCB1 PortName=COM#
+2025-07-25 11:44:50 - Com0comManager - INFO -    Asignando CNCB1 -> COM12...
+2025-07-25 11:44:50 - Com0comManager - INFO -    CNCB1 -> COM12: CNCA0 PortName=COM#,RealPortName=COM3,EmuBR=yes
+       CNCB0 PortName=COM#,RealPortName=COM4,EmuBR=yes
+       CNCA1 PortName=COM#,RealPortName=COM11
+       CNCB1 PortName=COM#
+
+DIALOG: {
+ComDBOpen()
+ERROR: 5 - Access is denied.
+
+} ... ERROR
+2025-07-25 11:44:51 - Com0comManager - INFO - ⚙️ Configurando parámetros de comunicación...
+2025-07-25 11:44:51 - Com0comManager - INFO -    Configurando CNCA1...
+2025-07-25 11:44:52 - Com0comManager - INFO -    CNCA1 EmuBR=no: CNCA0 PortName=COM#,RealPortName=COM3,EmuBR=yes
+       CNCB0 PortName=COM#,RealPortName=COM4,EmuBR=yes
+       CNCA1 PortName=COM#,RealPortName=COM11
+       CNCB1 PortName=COM#
+2025-07-25 11:44:52 - Com0comManager - INFO -    Configurando CNCB1...
+2025-07-25 11:44:52 - Com0comManager - INFO -    CNCB1 EmuBR=no: CNCA0 PortName=COM#,RealPortName=COM3,EmuBR=yes
+       CNCB0 PortName=COM#,RealPortName=COM4,EmuBR=yes
+       CNCA1 PortName=COM#,RealPortName=COM11
+       CNCB1 PortName=COM#
+2025-07-25 11:44:52 - Com0comManager - INFO -    ✅ Ambos puertos configurados sin emulación de baudrate
+2025-07-25 11:44:54 - Com0comManager - INFO - ✅ Puertos creados y configurados exitosamente
+2025-07-25 11:44:54 - Com0comManager - INFO - ✅ Par automático creado exitosamente
+2025-07-25 11:44:54 - Com0comManager - INFO -    Puertos: COM# (primer puerto del par) y COM# (segundo puerto del par)
+2025-07-25 11:44:54 - Com0comManager - INFO - 💾 Guardando configuración en: C:\Users\santi\Desktop\CHINO\config\com_ports_config.json
+2025-07-25 11:44:54 - Com0comManager - INFO - ✅ Archivo creado exitosamente: COM11 y COM12
+2025-07-25 11:44:54 - Com0comManager - INFO - 📁 Ubicación: C:\Users\santi\Desktop\CHINO\config\com_ports_config.json
