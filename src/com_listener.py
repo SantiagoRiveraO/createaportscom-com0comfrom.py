@@ -47,7 +47,7 @@ class COMListener:
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 10))
         
         # Frame de configuración
-        config_frame = ttk.LabelFrame(main_frame, text="Configuración", padding="5")
+        config_frame = ttk.LabelFrame(main_frame, text="Estado de Conexión", padding="5")
         config_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         config_frame.columnconfigure(1, weight=1)
         
@@ -57,15 +57,11 @@ class COMListener:
         self.port_combo = ttk.Combobox(config_frame, textvariable=self.port_var, state="readonly", width=10)
         self.port_combo.grid(row=0, column=1, sticky=tk.W, padx=(0, 10))
         
-        # Botón conectar/desconectar
-        self.connect_btn = ttk.Button(config_frame, text="🔌 Conectar", command=self.toggle_connection)
-        self.connect_btn.grid(row=0, column=2, padx=(0, 10))
-        
         # Estado de conexión
-        self.status_var = tk.StringVar(value="❌ Desconectado")
+        self.status_var = tk.StringVar(value="⏳ Conectando...")
         status_label = ttk.Label(config_frame, textvariable=self.status_var, 
-                                foreground="red", font=("Arial", 10, "bold"))
-        status_label.grid(row=0, column=3)
+                                foreground="orange", font=("Arial", 10, "bold"))
+        status_label.grid(row=0, column=2)
         
         # Área de texto para mostrar JSONs
         text_frame = ttk.LabelFrame(main_frame, text="JSONs Recibidos", padding="5")
@@ -75,7 +71,7 @@ class COMListener:
         
         # Texto con scroll
         self.text_area = scrolledtext.ScrolledText(text_frame, height=20, width=80, 
-                                                  font=("Consolas", 10))
+                                                   font=("Consolas", 10))
         self.text_area.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Frame de controles
@@ -94,40 +90,117 @@ class COMListener:
         # Contador de mensajes
         self.message_count = 0
         
+        # Cargar configuración de puertos y conectar automáticamente
+        self.load_ports_config()
+    
     def load_ports_config(self):
-        """Cargar configuración de puertos desde JSON"""
+        """Cargar configuración de puertos desde JSON y mostrar todos los puertos COM del sistema"""
         try:
+            # Obtener todos los puertos COM del sistema
+            all_ports = self.get_all_com_ports()
+            
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
                     config = json.load(f)
                 
-                ports = config.get('ports', [])
-                if len(ports) >= 2:
-                    # Agregar puertos al combo
-                    self.port_combo['values'] = ports
-                    if ports:
-                        self.port_combo.set(ports[0])  # Seleccionar el primero por defecto
+                created_ports = config.get('ports', [])
+                if len(created_ports) >= 2:
+                    # Agregar todos los puertos al combo
+                    self.port_combo['values'] = all_ports
                     
-                    self.log_message(f"📁 Configuración cargada: {ports[0]} y {ports[1]}")
+                    # Seleccionar automáticamente el puerto de mayor número de los creados
+                    # (el listener se conecta al puerto mayor, el sistema externo al menor)
+                    port1, port2 = created_ports[0], created_ports[1]
+                    
+                    # Extraer números de puerto (ej: "COM10" -> 10)
+                    try:
+                        num1 = int(port1[3:])  # Extraer número después de "COM"
+                        num2 = int(port2[3:])  # Extraer número después de "COM"
+                        
+                        # Seleccionar el puerto de mayor número de los creados
+                        if num2 > num1:
+                            default_port = port2  # Puerto mayor
+                            self.log_message(f"📡 Puerto por defecto: {port2} (mayor de los creados)")
+                            self.log_message(f"📡 Sistema externo debe conectar a {port1} (menor de los creados)")
+                        else:
+                            default_port = port1  # Puerto mayor
+                            self.log_message(f"📡 Puerto por defecto: {port1} (mayor de los creados)")
+                            self.log_message(f"📡 Sistema externo debe conectar a {port2} (menor de los creados)")
+                        
+                        self.port_combo.set(default_port)
+                        
+                        # Conectar automáticamente al puerto por defecto
+                        self.connect_to_port_auto(default_port)
+                        
+                    except ValueError:
+                        # Si no se pueden extraer números, usar el segundo puerto por defecto
+                        self.port_combo.set(port2)
+                        self.log_message(f"📡 Puerto por defecto: {port2}")
+                        # Conectar automáticamente
+                        self.connect_to_port_auto(port2)
+                    
+                    self.log_message(f"📁 Puertos creados: {port1} y {port2}")
+                    self.log_message(f"📋 Puertos disponibles en el sistema: {len(all_ports)} puertos")
+                    
+                    # Configurar evento para cambiar puerto
+                    self.port_combo.bind('<<ComboboxSelected>>', self.on_port_changed)
+                    
                 else:
                     self.log_message("⚠️ No hay puertos configurados en el JSON")
+                    if all_ports:
+                        # Si no hay configuración, usar el primer puerto disponible
+                        self.port_combo['values'] = all_ports
+                        self.port_combo.set(all_ports[0])
+                        self.log_message(f"📋 Usando primer puerto disponible: {all_ports[0]}")
+                        self.connect_to_port_auto(all_ports[0])
+                        self.port_combo.bind('<<ComboboxSelected>>', self.on_port_changed)
             else:
                 self.log_message("❌ Archivo de configuración no encontrado")
+                if all_ports:
+                    # Si no hay configuración, usar el primer puerto disponible
+                    self.port_combo['values'] = all_ports
+                    self.port_combo.set(all_ports[0])
+                    self.log_message(f"📋 Usando primer puerto disponible: {all_ports[0]}")
+                    self.connect_to_port_auto(all_ports[0])
+                    self.port_combo.bind('<<ComboboxSelected>>', self.on_port_changed)
         except Exception as e:
             self.log_message(f"❌ Error al cargar configuración: {e}")
     
-    def toggle_connection(self):
-        """Conectar/desconectar del puerto COM"""
-        if not self.is_listening:
-            self.connect_to_port()
-        else:
-            self.disconnect_from_port()
+    def get_all_com_ports(self):
+        """Obtener todos los puertos COM disponibles en el sistema"""
+        import serial.tools.list_ports
+        
+        try:
+            # Obtener todos los puertos COM
+            ports = [port.device for port in serial.tools.list_ports.comports()]
+            ports.sort(key=lambda x: int(x[3:]) if x[3:].isdigit() else 0)  # Ordenar por número
+            return ports
+        except Exception as e:
+            self.log_message(f"⚠️ Error al obtener puertos del sistema: {e}")
+            return []
     
-    def connect_to_port(self):
-        """Conectar al puerto COM seleccionado"""
-        port = self.port_var.get()
+    def on_port_changed(self, event):
+        """Manejar cambio de puerto seleccionado"""
+        new_port = self.port_var.get()
+        if new_port and new_port != getattr(self, 'current_port', None):
+            self.log_message(f"🔄 Cambiando a puerto: {new_port}")
+            
+            # Desconectar del puerto actual
+            if self.is_listening:
+                self.is_listening = False
+                if self.serial_port and self.serial_port.is_open:
+                    self.serial_port.close()
+                self.log_message("🔌 Desconectado del puerto anterior")
+            
+            # Conectar al nuevo puerto
+            self.connect_to_port_auto(new_port)
+            self.current_port = new_port
+    
+    def connect_to_port_auto(self, port):
+        """Conectar automáticamente al puerto COM seleccionado"""
         if not port:
-            self.log_message("❌ Selecciona un puerto COM")
+            self.log_message("❌ No hay puerto disponible para conectar")
+            self.status_var.set("❌ Error")
             return
         
         try:
@@ -142,28 +215,18 @@ class COMListener:
             )
             
             self.is_listening = True
-            self.connect_btn.config(text="🔌 Desconectar")
             self.status_var.set("✅ Conectado")
             
             # Iniciar thread de escucha
             self.listen_thread = threading.Thread(target=self.listen_for_data, daemon=True)
             self.listen_thread.start()
             
-            self.log_message(f"🔌 Conectado a {port}")
+            self.log_message(f"🔌 Conectado automáticamente a {port}")
+            self.log_message("📡 Esperando datos JSON...")
             
         except Exception as e:
-            self.log_message(f"❌ Error al conectar a {port}: {e}")
-    
-    def disconnect_from_port(self):
-        """Desconectar del puerto COM"""
-        self.is_listening = False
-        
-        if self.serial_port and self.serial_port.is_open:
-            self.serial_port.close()
-        
-        self.connect_btn.config(text="🔌 Conectar")
-        self.status_var.set("❌ Desconectado")
-        self.log_message("🔌 Desconectado")
+            self.log_message(f"❌ Error al conectar automáticamente a {port}: {e}")
+            self.status_var.set("❌ Error de conexión")
     
     def listen_for_data(self):
         """Escuchar datos del puerto COM en un thread separado"""
@@ -265,7 +328,10 @@ class COMListener:
     def on_closing(self):
         """Manejar cierre de ventana"""
         if self.is_listening:
-            self.disconnect_from_port()
+            self.is_listening = False
+            if self.serial_port and self.serial_port.is_open:
+                self.serial_port.close()
+            self.log_message("🔌 Desconectado al cerrar aplicación")
         self.root.destroy()
 
 def main():

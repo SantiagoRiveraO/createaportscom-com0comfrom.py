@@ -12,6 +12,7 @@ import sys
 import json
 import time
 import logging
+import ctypes
 from datetime import datetime
 
 # Agregar el directorio src al path para importar módulos
@@ -37,8 +38,46 @@ def setup_setup_logging():
 
 setup_logger = setup_setup_logging()
 
+def verify_admin_privileges():
+    """
+    Verifica que la aplicación tenga permisos de administrador
+    Esta función se ejecuta antes de cualquier operación del setup
+    """
+    try:
+        is_admin = ctypes.windll.shell32.IsUserAnAdmin()
+        if not is_admin:
+            setup_logger.critical("❌ PERMISOS DE ADMINISTRADOR REQUERIDOS")
+            
+            error_message = """❌ PERMISOS DE ADMINISTRADOR REQUERIDOS
+
+Esta aplicación necesita permisos de administrador para funcionar correctamente.
+
+¿Por qué se necesitan permisos de administrador?
+• Crear puertos COM virtuales
+• Modificar configuraciones del sistema
+• Acceder a drivers de com0com
+
+SOLUCIÓN:
+Ejecuta la aplicación usando 'run_chino_admin.bat' que solicitará permisos automáticamente.
+
+La aplicación se cerrará ahora."""
+            
+            messagebox.showerror("Permisos de Administrador Requeridos", error_message)
+            sys.exit(1)
+        
+        setup_logger.info("✅ Permisos de administrador verificados correctamente")
+        return True
+        
+    except Exception as e:
+        setup_logger.error(f"❌ Error al verificar permisos de administrador: {e}")
+        messagebox.showerror("Error", f"Error al verificar permisos de administrador: {e}")
+        sys.exit(1)
+
 class SetupManager:
     def __init__(self):
+        # Verificar permisos de administrador ANTES de cualquier operación
+        verify_admin_privileges()
+        
         self.config_file = os.path.join("config", "com_ports_config.json")
         self.manager = Com0comManager(self.config_file)
         setup_logger.info("🔧 SetupManager inicializado")

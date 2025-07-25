@@ -4,6 +4,7 @@ import time
 import winreg
 import json
 import logging
+import ctypes
 from typing import Tuple, Optional, List
 import serial
 
@@ -40,6 +41,59 @@ def setup_logging():
 # Crear logger global
 logger = setup_logging()
 
+def is_admin():
+    """
+    Verifica si la aplicación tiene permisos de administrador
+    Returns:
+        bool: True si tiene permisos de administrador, False en caso contrario
+    """
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
+def require_admin_privileges():
+    """
+    Verifica que la aplicación tenga permisos de administrador
+    Si no los tiene, muestra un error y termina la aplicación
+    """
+    if not is_admin():
+        logger.critical("❌ PERMISOS DE ADMINISTRADOR REQUERIDOS")
+        logger.critical("Esta aplicación necesita permisos de administrador para:")
+        logger.critical("• Crear puertos COM virtuales")
+        logger.critical("• Modificar configuraciones del sistema")
+        logger.critical("• Acceder a drivers de com0com")
+        
+        # Mostrar mensaje de error
+        import tkinter as tk
+        from tkinter import messagebox
+        
+        root = tk.Tk()
+        root.withdraw()  # Ocultar ventana principal
+        
+        error_message = """❌ PERMISOS DE ADMINISTRADOR REQUERIDOS
+
+Esta aplicación necesita permisos de administrador para funcionar correctamente.
+
+¿Por qué se necesitan permisos de administrador?
+• Crear puertos COM virtuales
+• Modificar configuraciones del sistema
+• Acceder a drivers de com0com
+
+SOLUCIÓN:
+Ejecuta la aplicación usando 'run_chino_admin.bat' que solicitará permisos automáticamente.
+
+La aplicación se cerrará ahora."""
+        
+        messagebox.showerror("Permisos de Administrador Requeridos", error_message)
+        root.destroy()
+        
+        # Terminar la aplicación
+        import sys
+        sys.exit(1)
+    
+    logger.info("✅ Permisos de administrador verificados correctamente")
+
 
 class Com0comManager:
     """
@@ -47,6 +101,9 @@ class Com0comManager:
     """
     
     def __init__(self, config_file="config/com_ports_config.json"):
+        # Verificar permisos de administrador ANTES de cualquier operación
+        require_admin_privileges()
+        
         self.com0com_path = None
         self.setupc_path = None
         self.config_file = config_file

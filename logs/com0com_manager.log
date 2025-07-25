@@ -59,3 +59,53 @@ ERROR: 5 - Access is denied.
 2025-07-25 11:44:54 - Com0comManager - INFO - 💾 Guardando configuración en: C:\Users\santi\Desktop\CHINO\config\com_ports_config.json
 2025-07-25 11:44:54 - Com0comManager - INFO - ✅ Archivo creado exitosamente: COM11 y COM12
 2025-07-25 11:44:54 - Com0comManager - INFO - 📁 Ubicación: C:\Users\santi\Desktop\CHINO\config\com_ports_config.json
+2025-07-25 11:54:04 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 11:54:04 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 11:54:04 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 11:54:04 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 11:54:04 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 11:54:04 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 11:54:04 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 11:54:04 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 11:54:04 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 11:54:04 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:01:11 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:01:11 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:01:11 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:01:11 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:01:11 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:01:11 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:01:11 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:01:11 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:01:11 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:01:11 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:05:22 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:05:22 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:05:22 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:05:22 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:05:22 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:05:22 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:05:22 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:05:22 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:05:22 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:05:22 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:07:12 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:07:12 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:07:12 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:07:12 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:07:12 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:07:12 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:07:12 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:07:12 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:07:12 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:07:12 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:18:21 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:18:21 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:18:21 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:18:21 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:18:21 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
+2025-07-25 12:18:21 - Com0comManager - INFO - ✅ Permisos de administrador verificados correctamente
+2025-07-25 12:18:21 - Com0comManager - INFO - 🔧 Inicializando Com0comManager
+2025-07-25 12:18:21 - Com0comManager - INFO - 🔍 Buscando instalación de Com0com...
+2025-07-25 12:18:21 - Com0comManager - DEBUG - 📋 Com0com no encontrado en registro: [WinError 2] El sistema no puede encontrar el archivo especificado
+2025-07-25 12:18:21 - Com0comManager - INFO - ✅ Com0com encontrado en: C:\Program Files (x86)\com0com
