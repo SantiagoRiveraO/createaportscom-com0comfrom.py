@@ -363,6 +363,75 @@ class MainApplication:
         except Exception as e:
             self.log_message(f"❌ Error al cargar configuración: {e}")
     
+    def configure_serial_port(self, port_name):
+        """Configurar puerto serial optimizado para máxima velocidad"""
+        port = serial.Serial(
+            port=port_name,
+            baudrate=115200,
+            timeout=0.01,  # Timeout mínimo para máxima velocidad
+            bytesize=serial.EIGHTBITS,
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            write_timeout=0.01,  # Timeout mínimo para escritura
+            inter_byte_timeout=None  # Sin timeout entre bytes
+        )
+        
+        # Configurar buffers específicos para Windows
+        if hasattr(port, 'set_buffer_size'):
+            try:
+                port.set_buffer_size(rx_size=65536, tx_size=65536)
+            except:
+                pass  # Si no se puede configurar, continuar
+        
+        # Configurar parámetros específicos de Windows
+        if hasattr(port, 'set_low_latency_mode'):
+            try:
+                port.set_low_latency_mode(True)
+            except:
+                pass  # Si no se puede configurar, continuar
+        
+        # Configurar parámetros adicionales de Windows para estabilidad
+        try:
+            import win32file
+            import win32api
+            
+            # Obtener handle del puerto
+            handle = win32file.CreateFile(
+                f"\\\\.\\{port_name}",
+                win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+                0,
+                None,
+                win32file.OPEN_EXISTING,
+                win32file.FILE_ATTRIBUTE_NORMAL,
+                None
+            )
+            
+            # Configurar timeouts de Windows para máxima velocidad
+            timeouts = win32file.COMMTIMEOUTS()
+            timeouts.ReadIntervalTimeout = 0xFFFFFFFF  # No timeout entre bytes
+            timeouts.ReadTotalTimeoutConstant = 10     # 10ms timeout total (mínimo)
+            timeouts.ReadTotalTimeoutMultiplier = 0    # No multiplicador
+            timeouts.WriteTotalTimeoutConstant = 10    # 10ms timeout escritura (mínimo)
+            timeouts.WriteTotalTimeoutMultiplier = 0   # No multiplicador
+            
+            win32file.SetCommTimeouts(handle, timeouts)
+            
+            # Configurar parámetros del puerto
+            dcb = win32file.GetCommState(handle)
+            dcb.BaudRate = 115200
+            dcb.ByteSize = 8
+            dcb.Parity = 0  # No parity
+            dcb.StopBits = 0  # 1 stop bit
+            win32file.SetCommState(handle, dcb)
+            
+            win32file.CloseHandle(handle)
+            
+        except Exception as e:
+            # Si falla la configuración de Windows, continuar con configuración básica
+            pass
+        
+        return port
+    
     def connect_input_port_only(self, input_port):
         """Conectar SOLO el puerto de entrada automáticamente"""
         if not input_port:
@@ -371,15 +440,8 @@ class MainApplication:
             return
         
         try:
-            # Configurar puerto serial de entrada
-            self.serial_port_input = serial.Serial(
-                port=input_port,
-                baudrate=115200,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            )
+            # Configurar puerto serial de entrada optimizado
+            self.serial_port_input = self.configure_serial_port(input_port)
             
             self.is_listening_input = True
             self.status_input_var.set("✅ Conectado")
@@ -395,6 +457,8 @@ class MainApplication:
         except Exception as e:
             self.log_message(f"❌ Error al conectar puerto de entrada: {e}")
             self.status_input_var.set("❌ Error de conexión")
+            # Intentar reconexión automática
+            self.auto_reconnect_ports()
     
     def on_input_port_changed(self, event):
         """Manejar cambio de puerto de entrada"""
@@ -429,15 +493,8 @@ class MainApplication:
             return
         
         try:
-            # Configurar puerto serial de salida
-            self.serial_port_output = serial.Serial(
-                port=output_port,
-                baudrate=115200,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            )
+            # Configurar puerto serial de salida optimizado
+            self.serial_port_output = self.configure_serial_port(output_port)
             
             self.is_listening_output = True
             self.status_output_var.set("✅ Conectado")
@@ -452,6 +509,8 @@ class MainApplication:
         except Exception as e:
             self.log_message(f"❌ Error al conectar puerto de salida: {e}")
             self.status_output_var.set("❌ Error de conexión")
+            # Intentar reconexión automática
+            self.auto_reconnect_ports()
     
     def get_all_com_ports(self):
         """Obtener todos los puertos COM disponibles en el sistema"""
@@ -468,123 +527,157 @@ class MainApplication:
     
     def listen_for_input_data(self):
         """Escuchar datos del puerto de entrada y reenviarlos al puerto de salida"""
-        buffer = ""
+        import time
         
-        while self.is_listening_input and self.serial_port_input and self.serial_port_input.is_open:
+        error_count = 0
+        consecutive_empty_reads = 0
+        
+        while self.is_listening_input:
             try:
+                # Verificar que el puerto esté disponible y abierto
+                if not self.serial_port_input or not self.serial_port_input.is_open:
+                    time.sleep(0.5)  # Pausa más larga si el puerto no está disponible
+                    continue
+                
+                # Leer datos disponibles - OPTIMIZADO PARA VELOCIDAD
                 if self.serial_port_input.in_waiting > 0:
-                    data = self.serial_port_input.read(self.serial_port_input.in_waiting).decode('utf-8', errors='ignore')
-                    buffer += data
-                    
-                    # Buscar JSONs completos
-                    while True:
-                        # Buscar inicio de JSON
-                        start = buffer.find('{')
-                        if start == -1:
-                            break
-                        
-                        # Buscar fin de JSON
-                        brace_count = 0
-                        end = -1
-                        
-                        for i in range(start, len(buffer)):
-                            if buffer[i] == '{':
-                                brace_count += 1
-                            elif buffer[i] == '}':
-                                brace_count -= 1
-                                if brace_count == 0:
-                                    end = i + 1
-                                    break
-                        
-                        if end > start:
-                            # Extraer JSON completo
-                            json_str = buffer[start:end]
-                            buffer = buffer[end:]
-                            
-                            # Reenviar al puerto de salida
-                            self.forward_to_output(json_str)
-                        else:
-                            # JSON incompleto, esperar más datos
-                            break
-                            
+                    data = self.serial_port_input.read(self.serial_port_input.in_waiting)
+                    if data:
+                        json_str = data.decode('utf-8', errors='ignore').strip()
+                        # Reenviar al puerto de salida (JSONs son perfectos)
+                        self.forward_to_output(json_str)
+                        error_count = 0  # Resetear contador de errores si hay datos
+                        consecutive_empty_reads = 0  # Resetear contador de lecturas vacías
+                else:
+                    consecutive_empty_reads += 1
+                    # Pausa mínima para máxima velocidad
+                    if consecutive_empty_reads < 50:
+                        time.sleep(0.001)  # 1ms para máxima velocidad
+                    elif consecutive_empty_reads < 200:
+                        time.sleep(0.005)  # 5ms para velocidad moderada
+                    else:
+                        time.sleep(0.01)   # 10ms para evitar saturación
+                
+            except PermissionError as e:
+                error_count += 1
+                if error_count >= 10:  # Aumentar a 10 errores antes de reconexión
+                    self.log_message("🔄 Intentando reconexión automática por errores de permisos...")
+                    self.auto_reconnect_ports()
+                    # NO hacer break, continuar escuchando
+                    error_count = 0  # Resetear contador después de reconexión
+                elif error_count <= 3:  # Solo mostrar los primeros 3 errores
+                    self.log_message(f"🔒 Puerto de entrada bloqueado: {e}")
+                time.sleep(2.0)  # Pausa más larga para errores de permisos
+                continue
             except Exception as e:
-                self.log_message(f"❌ Error al leer datos de entrada: {e}")
-                break
+                error_count += 1
+                if error_count >= 10:  # Aumentar a 10 errores antes de reconexión
+                    self.log_message("🔄 Intentando reconexión automática por errores...")
+                    self.auto_reconnect_ports()
+                    # NO hacer break, continuar escuchando
+                    error_count = 0  # Resetear contador después de reconexión
+                elif error_count <= 3:  # Solo mostrar los primeros 3 errores
+                    self.log_message(f"⚠️ Error en escucha de entrada: {e}")
+                time.sleep(1.0)  # Pausa más larga para otros errores
+                continue
         
-        self.log_message("🔌 Thread de escucha de entrada terminado")
+        # Solo mostrar este mensaje si realmente se está cerrando la aplicación
+        if not self.is_listening_input:
+            self.log_message("🔌 Thread de escucha de entrada terminado (aplicación cerrada)")
+        else:
+            self.log_message("⚠️ Thread de escucha de entrada terminado inesperadamente")
+            # Intentar reiniciar el hilo automáticamente
+            self.restart_input_thread()
     
     def listen_for_output_responses(self):
         """Escuchar respuestas del puerto de salida y reenviarlas al puerto de entrada"""
-        buffer = ""
+        import time
         
-        while self.is_listening_output and self.serial_port_output and self.serial_port_output.is_open:
+        error_count = 0
+        consecutive_empty_reads = 0
+        
+        while self.is_listening_output:
             try:
+                # Verificar que el puerto esté disponible y abierto
+                if not self.serial_port_output or not self.serial_port_output.is_open:
+                    time.sleep(0.5)  # Pausa más larga si el puerto no está disponible
+                    continue
+                
+                # Leer datos disponibles - OPTIMIZADO PARA VELOCIDAD
                 if self.serial_port_output.in_waiting > 0:
-                    data = self.serial_port_output.read(self.serial_port_output.in_waiting).decode('utf-8', errors='ignore')
-                    buffer += data
-                    
-                    # Buscar JSONs completos
-                    while True:
-                        # Buscar inicio de JSON
-                        start = buffer.find('{')
-                        if start == -1:
-                            break
-                        
-                        # Buscar fin de JSON
-                        brace_count = 0
-                        end = -1
-                        
-                        for i in range(start, len(buffer)):
-                            if buffer[i] == '{':
-                                brace_count += 1
-                            elif buffer[i] == '}':
-                                brace_count -= 1
-                                if brace_count == 0:
-                                    end = i + 1
-                                    break
-                        
-                        if end > start:
-                            # Extraer JSON completo
-                            json_str = buffer[start:end]
-                            buffer = buffer[end:]
-                            
-                            # Reenviar al puerto de entrada
-                            self.forward_to_input(json_str)
-                        else:
-                            # JSON incompleto, esperar más datos
-                            break
-                            
+                    data = self.serial_port_output.read(self.serial_port_output.in_waiting)
+                    if data:
+                        json_str = data.decode('utf-8', errors='ignore').strip()
+                        # Reenviar al puerto de entrada (JSONs son perfectos)
+                        self.forward_to_input(json_str)
+                        error_count = 0  # Resetear contador de errores si hay datos
+                        consecutive_empty_reads = 0  # Resetear contador de lecturas vacías
+                else:
+                    consecutive_empty_reads += 1
+                    # Pausa mínima para máxima velocidad
+                    if consecutive_empty_reads < 50:
+                        time.sleep(0.001)  # 1ms para máxima velocidad
+                    elif consecutive_empty_reads < 200:
+                        time.sleep(0.005)  # 5ms para velocidad moderada
+                    else:
+                        time.sleep(0.01)   # 10ms para evitar saturación
+                
+            except PermissionError as e:
+                error_count += 1
+                if error_count >= 10:  # Aumentar a 10 errores antes de reconexión
+                    self.log_message("🔄 Intentando reconexión automática por errores de permisos...")
+                    self.auto_reconnect_ports()
+                    # NO hacer break, continuar escuchando
+                    error_count = 0  # Resetear contador después de reconexión
+                elif error_count <= 3:  # Solo mostrar los primeros 3 errores
+                    self.log_message(f"🔒 Puerto de salida bloqueado: {e}")
+                time.sleep(2.0)  # Pausa más larga para errores de permisos
+                continue
             except Exception as e:
-                self.log_message(f"❌ Error al leer respuestas de salida: {e}")
-                break
+                error_count += 1
+                if error_count >= 10:  # Aumentar a 10 errores antes de reconexión
+                    self.log_message("🔄 Intentando reconexión automática por errores...")
+                    self.auto_reconnect_ports()
+                    # NO hacer break, continuar escuchando
+                    error_count = 0  # Resetear contador después de reconexión
+                elif error_count <= 3:  # Solo mostrar los primeros 3 errores
+                    self.log_message(f"⚠️ Error en escucha de salida: {e}")
+                time.sleep(1.0)  # Pausa más larga para otros errores
+                continue
         
-        self.log_message("🔌 Thread de escucha de respuestas terminado")
+        # Solo mostrar este mensaje si realmente se está cerrando la aplicación
+        if not self.is_listening_output:
+            self.log_message("🔌 Thread de escucha de salida terminado (aplicación cerrada)")
+        else:
+            self.log_message("⚠️ Thread de escucha de salida terminado inesperadamente")
+            # Intentar reiniciar el hilo automáticamente
+            self.restart_output_thread()
     
     def forward_to_output(self, json_str):
-        """Reenviar JSON recibido al puerto de salida"""
+        """Reenviar JSON recibido al puerto de salida - OPTIMIZADO PARA VELOCIDAD"""
         try:
             if self.serial_port_output and self.serial_port_output.is_open:
-                # Enviar JSON tal cual
+                # Enviar JSON tal cual - SIN FLUSH para máxima velocidad
                 self.serial_port_output.write(json_str.encode('utf-8'))
-                self.serial_port_output.flush()
+                # NO usar flush() - deja que el buffer se envíe automáticamente
                 
-                # Mostrar en interfaz
+                # Mostrar en interfaz (asíncrono para no bloquear)
                 self.message_count += 1
-                self.root.after(0, self.display_sent_message, json_str)
+                self.root.after_idle(self.display_sent_message, json_str)
                 
         except Exception as e:
             self.log_message(f"❌ Error al reenviar a salida: {e}")
     
     def forward_to_input(self, json_str):
-        """Reenviar respuesta recibida al puerto de entrada"""
+        """Reenviar respuesta recibida al puerto de entrada - OPTIMIZADO PARA VELOCIDAD"""
         try:
             if self.serial_port_input and self.serial_port_input.is_open:
-                # Enviar respuesta tal cual
+                # Enviar respuesta tal cual - SIN FLUSH para máxima velocidad
                 self.serial_port_input.write(json_str.encode('utf-8'))
-                self.serial_port_input.flush()
+                # NO usar flush() - deja que el buffer se envíe automáticamente
                 
-                # Mostrar en interfaz
-                self.root.after(0, self.display_received_response, json_str)
+                # Mostrar en interfaz (asíncrono para no bloquear)
+                self.root.after_idle(self.display_received_response, json_str)
                 
         except Exception as e:
             self.log_message(f"❌ Error al reenviar respuesta a entrada: {e}")
@@ -711,6 +804,124 @@ Características:
         
         messagebox.showinfo("Acerca de", about_text)
     
+    def auto_reconnect_ports(self):
+        """Reconexión automática cuando hay errores de conexión"""
+        import time
+        
+        input_port = self.port_input_var.get()
+        output_port = self.port_output_var.get()
+        
+        if not input_port or not output_port:
+            self.log_message("❌ No hay puertos configurados para reconexión automática")
+            return
+        
+        self.log_message("🔄 Iniciando reconexión automática...")
+        
+        # Desconectar ambos puertos de forma segura
+        if self.is_listening_input:
+            self.is_listening_input = False
+            if self.serial_port_input and self.serial_port_input.is_open:
+                try:
+                    self.serial_port_input.close()
+                except:
+                    pass  # Ignorar errores al cerrar
+        
+        if self.is_listening_output:
+            self.is_listening_output = False
+            if self.serial_port_output and self.serial_port_output.is_open:
+                try:
+                    self.serial_port_output.close()
+                except:
+                    pass  # Ignorar errores al cerrar
+        
+        # Esperar más tiempo para que se liberen completamente los puertos
+        time.sleep(3.0)
+        
+        # Actualizar estados
+        self.status_input_var.set("⏳ Reconectando...")
+        self.status_output_var.set("⏳ Reconectando...")
+        
+        # Intentar reconectar con reintentos
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Reconectar puerto de entrada
+                self.connect_input_port_only(input_port)
+                
+                # Si el puerto de salida estaba conectado, reconectarlo también
+                if self.port_output_var.get():
+                    self.connect_output_port()
+                
+                self.log_message(f"✅ Reconexión automática completada (intento {attempt + 1})")
+                return  # Salir si fue exitoso
+                
+            except Exception as e:
+                self.log_message(f"❌ Error en reconexión automática (intento {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2.0)  # Esperar antes del siguiente intento
+                else:
+                    self.status_input_var.set("❌ Error")
+                    self.status_output_var.set("❌ Error")
+                    self.log_message("❌ Reconexión automática falló después de 3 intentos")
+    
+    def restart_input_thread(self):
+        """Reiniciar el hilo de escucha de entrada si se cierra inesperadamente"""
+        import time
+        
+        if not self.is_listening_input:
+            return  # No reiniciar si ya se está cerrando intencionalmente
+        
+        self.log_message("🔄 Reiniciando hilo de escucha de entrada...")
+        
+        # Esperar un momento antes de reiniciar
+        time.sleep(1.0)
+        
+        try:
+            # Verificar que el puerto esté conectado
+            if self.serial_port_input and self.serial_port_input.is_open:
+                # Reiniciar el hilo
+                self.listen_input_thread = threading.Thread(target=self.listen_for_input_data, daemon=True)
+                self.listen_input_thread.start()
+                self.log_message("✅ Hilo de escucha de entrada reiniciado")
+            else:
+                self.log_message("❌ No se puede reiniciar hilo: puerto no conectado")
+        except Exception as e:
+            self.log_message(f"❌ Error al reiniciar hilo de entrada: {e}")
+    
+    def restart_output_thread(self):
+        """Reiniciar el hilo de escucha de salida si se cierra inesperadamente"""
+        import time
+        
+        if not self.is_listening_output:
+            return  # No reiniciar si ya se está cerrando intencionalmente
+        
+        self.log_message("🔄 Reiniciando hilo de escucha de salida...")
+        
+        # Esperar un momento antes de reiniciar
+        time.sleep(1.0)
+        
+        try:
+            # Verificar que el puerto esté conectado
+            if self.serial_port_output and self.serial_port_output.is_open:
+                # Reiniciar el hilo
+                self.listen_output_thread = threading.Thread(target=self.listen_for_output_responses, daemon=True)
+                self.listen_output_thread.start()
+                self.log_message("✅ Hilo de escucha de salida reiniciado")
+            else:
+                self.log_message("❌ No se puede reiniciar hilo: puerto no conectado")
+        except Exception as e:
+            self.log_message(f"❌ Error al reiniciar hilo de salida: {e}")
+    
+    def force_flush_ports(self):
+        """Forzar el envío inmediato de datos en buffers (para máxima velocidad)"""
+        try:
+            if self.serial_port_input and self.serial_port_input.is_open:
+                self.serial_port_input.flush()
+            if self.serial_port_output and self.serial_port_output.is_open:
+                self.serial_port_output.flush()
+        except Exception as e:
+            pass  # Ignorar errores de flush
+    
     def reconnect(self):
         """Reconectar a los puertos COM actuales"""
         input_port = self.port_input_var.get()
@@ -746,25 +957,9 @@ Características:
             return
         
         try:
-            # Configurar puerto serial de entrada
-            self.serial_port_input = serial.Serial(
-                port=input_port,
-                baudrate=115200,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            )
-            
-            # Configurar puerto serial de salida
-            self.serial_port_output = serial.Serial(
-                port=output_port,
-                baudrate=115200,
-                timeout=1,
-                bytesize=serial.EIGHTBITS,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE
-            )
+            # Configurar puertos seriales optimizados
+            self.serial_port_input = self.configure_serial_port(input_port)
+            self.serial_port_output = self.configure_serial_port(output_port)
             
             self.is_listening_input = True
             self.is_listening_output = True
@@ -786,6 +981,8 @@ Características:
             self.log_message(f"❌ Error al conectar automáticamente: {e}")
             self.status_input_var.set("❌ Error de conexión")
             self.status_output_var.set("❌ Error de conexión")
+            # Intentar reconexión automática
+            self.auto_reconnect_ports()
     
     def on_closing(self):
         """Manejar cierre de ventana"""
